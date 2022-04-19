@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="keywords" content="blog">
+    <meta name="description" content="主动思考，积极行动。">
+    <meta name="author" content="thornboo">
+    
+    <title>
+        
+            关于Webpack，npm、Node的简单介绍 |
+        
+        Thornboo Blog
+    </title>
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <link rel="shortcut icon" href="https://cdn.jsdelivr.net/gh/thornboo/blog-image-bed@master/博客favicon图标.2fwqx5oa9e4g.webp">
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/css/font-awesome.min.css">
+    <script id="hexo-configurations">
+    let KEEP = window.KEEP || {};
+    KEEP.hexo_config = {"hostname":"thornboo.github.io","root":"/","language":"zh-CN","path":"search.json"};
+    KEEP.theme_config = {"toc":{"enable":true,"number":false,"expand_all":false,"init_open":true},"style":{"primary_color":"#cb3e3e","avatar":"https://cdn.jsdelivr.net/gh/thornboo/blog-image-bed@master/博客作者头像.7gp4bjoa1h80.webp","favicon":"https://cdn.jsdelivr.net/gh/thornboo/blog-image-bed@master/博客favicon图标.2fwqx5oa9e4g.webp","article_img_align":"left","left_side_width":"260px","content_max_width":"920px","hover":{"shadow":true,"scale":true},"first_screen":{"enable":true,"background_img":"/images/bg.svg","description":"主动思考，积极行动。"},"scroll":{"progress_bar":{"enable":false},"percent":{"enable":true}}},"local_search":{"enable":true,"preload":true},"code_copy":{"enable":true,"style":"mac"},"pjax":{"enable":true},"lazyload":{"enable":true},"version":"3.4.5"};
+    KEEP.language_ago = {"second":"%s 秒前","minute":"%s 分钟前","hour":"%s 小时前","day":"%s 天前","week":"%s 周前","month":"%s 个月前","year":"%s 年前"};
+  </script>
+<meta name="generator" content="Hexo 6.1.0"><link rel="alternate" href="/atom.xml" title="Thornboo Blog" type="application/atom+xml">
+</head>
+
+
+<body>
+<div class="progress-bar-container">
+    
+
+    
+        <span class="pjax-progress-bar"></span>
+        <span class="pjax-progress-icon">
+            <i class="fas fa-circle-notch fa-spin"></i>
+        </span>
+    
+</div>
+
+
+<main class="page-container">
+
+    
+
+    <div class="page-main-content">
+
+        <div class="page-main-content-top">
+            <header class="header-wrapper">
+
+    <div class="header-content">
+        <div class="left">
+            
+            <a class="logo-title" href="/">
+                Thornboo Blog
+            </a>
+        </div>
+
+        <div class="right">
+            <div class="pc">
+                <ul class="menu-list">
+                    
+                        <li class="menu-item">
+                            <a class=""
+                               href="/"
+                            >
+                                首页
+                            </a>
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a class=""
+                               href="/archives"
+                            >
+                                归档
+                            </a>
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a class=""
+                               href="/categories"
+                            >
+                                分类
+                            </a>
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a class=""
+                               href="/tags"
+                            >
+                                标签
+                            </a>
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a class=""
+                               href="/links"
+                            >
+                                友链
+                            </a>
+                        </li>
+                    
+                        <li class="menu-item">
+                            <a class=""
+                               href="/about"
+                            >
+                                关于
+                            </a>
+                        </li>
+                    
+                    
+                        <li class="menu-item search search-popup-trigger">
+                            <i class="fas fa-search"></i>
+                        </li>
+                    
+                </ul>
+            </div>
+            <div class="mobile">
+                
+                    <div class="icon-item search search-popup-trigger"><i class="fas fa-search"></i></div>
+                
+                <div class="icon-item menu-bar">
+                    <div class="menu-bar-middle"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="header-drawer">
+        <ul class="drawer-menu-list">
+            
+                <li class="drawer-menu-item flex-center">
+                    <a class=""
+                       href="/">首页</a>
+                </li>
+            
+                <li class="drawer-menu-item flex-center">
+                    <a class=""
+                       href="/archives">归档</a>
+                </li>
+            
+                <li class="drawer-menu-item flex-center">
+                    <a class=""
+                       href="/categories">分类</a>
+                </li>
+            
+                <li class="drawer-menu-item flex-center">
+                    <a class=""
+                       href="/tags">标签</a>
+                </li>
+            
+                <li class="drawer-menu-item flex-center">
+                    <a class=""
+                       href="/links">友链</a>
+                </li>
+            
+                <li class="drawer-menu-item flex-center">
+                    <a class=""
+                       href="/about">关于</a>
+                </li>
+            
+        </ul>
+    </div>
+
+    <div class="window-mask"></div>
+
+</header>
+
+
+        </div>
+
+        <div class="page-main-content-middle">
+
+            <div class="main-content">
+
+                
+                    <div class="fade-in-down-animation">
+    <div class="article-content-container">
+
+        <div class="article-title">
+            <span class="title-hover-animation">关于Webpack，npm、Node的简单介绍</span>
+        </div>
+
+        
+            <div class="article-header">
+                <div class="avatar">
+                    <img src="https://cdn.jsdelivr.net/gh/thornboo/blog-image-bed@master/%E5%8D%9A%E5%AE%A2%E4%BD%9C%E8%80%85%E5%A4%B4%E5%83%8F.7gp4bjoa1h80.webp">
+                </div>
+                <div class="info">
+                    <div class="author">
+                        <span class="name">thornboo</span>
+                        
+                            <span class="author-label">Lv2</span>
+                        
+                    </div>
+                    <div class="meta-info">
+                        <div class="article-meta-info">
+    <span class="article-date article-meta-item">
+        <i class="fas fa-edit"></i>&nbsp;
+        <span class="pc">2022-04-18 21:38:39</span>
+        <span class="mobile">2022-04-18 21:38</span>
+    </span>
+    
+    
+        <span class="article-tags article-meta-item">
+            <i class="fas fa-tags"></i>&nbsp;
+            <ul>
+                
+                    <li>
+                        <a href="/tags/%E6%80%BB%E7%BB%93/">总结</a>&nbsp;
+                    </li>
+                
+            </ul>
+        </span>
+    
+
+    
+    
+        <span class="article-wordcount article-meta-item">
+            <i class="fas fa-file-word"></i>&nbsp;<span>590 字</span>
+        </span>
+    
+    
+        <span class="article-min2read article-meta-item">
+            <i class="fas fa-clock"></i>&nbsp;<span>2 分钟</span>
+        </span>
+    
+    
+        <span class="article-pv article-meta-item">
+            <i class="fas fa-eye"></i>&nbsp;<span id="busuanzi_value_page_pv"></span>
+        </span>
+    
+</div>
+
+                    </div>
+                </div>
+            </div>
+        
+
+        <div class="article-content markdown-body">
+            <h3 id="一、npm相关"><a href="#一、npm相关" class="headerlink" title="一、npm相关"></a>一、npm相关</h3><h5 id="1、介绍"><a href="#1、介绍" class="headerlink" title="1、介绍"></a>1、介绍</h5><p><code>npm</code> 全称为 <code>Node Package Manager</code>，是一个基于 <code>Node.js</code> 的包管理器，是一个项目构建工具。它可以指定依赖库，设置项目属性等等，都在 <code>package.json</code> 配置文件里面。而 <code>package.json</code> 文件定义的是包，而 <code>node_modules</code> 文件夹则是存储模块的地方。便于js查找模块。<br><code>npm</code>主要是提供 <code>node_module</code> 的依赖支持, 而且是类似 <code>maven</code> 的 <code>dependency tree</code> 结构。</p>
+<p><code>npm</code> 由三个独立的部分组成：</p>
+<ul>
+<li>网站：是开发者查找包（<code>package</code>）、设置参数以及管理 <code>npm</code> 使用体验的主要途径。</li>
+<li>注册表（<code>registry</code>）：是一个巨大的数据库，保存了每个包（<code>package</code>）的信息。</li>
+<li>命令行工具 (<code>CLI</code>)：通过命令行或终端运行。开发者通过 <code>CLI</code> 与 <code>npm</code> 打交道。</li>
+</ul>
+<h5 id="2、npm的全局安装和局部安装（-save-和-dev-区别）"><a href="#2、npm的全局安装和局部安装（-save-和-dev-区别）" class="headerlink" title="2、npm的全局安装和局部安装（ --save 和 --dev 区别）"></a>2、npm的全局安装和局部安装（ <code>--save</code> 和 <code>--dev</code> 区别）</h5><h5 id="3、npm更换镜像源"><a href="#3、npm更换镜像源" class="headerlink" title="3、npm更换镜像源"></a>3、npm更换镜像源</h5><ul>
+<li>临时切换，通过 <code>npm</code> 命令指定下载源： <strong><code>npm --registry https://registry.npm.taobao.org install express</code></strong></li>
+<li>永久修改，使用命令： <strong><code>npm config set registry https://registry.npm.taobao.org</code></strong></li>
+</ul>
+<h5 id="4、如何查看全局和局部的包"><a href="#4、如何查看全局和局部的包" class="headerlink" title="4、如何查看全局和局部的包"></a>4、如何查看全局和局部的包</h5><h5 id="5、npm-和-cnpm-的区别，会不会产生冲突"><a href="#5、npm-和-cnpm-的区别，会不会产生冲突" class="headerlink" title="5、npm 和 cnpm 的区别，会不会产生冲突"></a>5、<code>npm</code> 和 <code>cnpm</code> 的区别，会不会产生冲突</h5><h5 id="6、npm如何更换包的版本"><a href="#6、npm如何更换包的版本" class="headerlink" title="6、npm如何更换包的版本"></a>6、npm如何更换包的版本</h5><h3 id="二、webpack相关"><a href="#二、webpack相关" class="headerlink" title="二、webpack相关"></a>二、webpack相关</h3><p><code>Webpack</code> 是一个前端资源加载&#x2F;打包工具。它将根据模块的依赖关系进行静态分析，然后将这些模块按照指定的规则生成对应的静态资源。除此之外，<code>webpack</code> 因为可以提高兼容性，可以将一些浏览器尚不支持的新特性转换为可以支持格式，进而减少由新特性带来的浏览器的兼容性问题。</p>
+<p><img  
+                     lazyload
+                     src="/images/loading.svg"
+                     data-src="https://cdn.jsdelivr.net/gh/thornboo/blog-image-bed@master/webpack%E6%B5%81%E7%A8%8B%E5%9B%BE.518ty7jhnvw0.webp"
+                      alt="webpack流程图" title="webpack流程图"
+                ></p>
+<h3 id="三、node相关"><a href="#三、node相关" class="headerlink" title="三、node相关"></a>三、node相关</h3><p>简单的说， <code>Node.js</code> 就是一个服务器端的、 非阻断式I&#x2F;O 的、事件驱动 的JavaScript运行环境。<br>基于Google的V8引擎，V8引擎执行Javascript的速度非常快，性能非常好，提供了一种可以让JS代码跑在后端的能力，这就是<code>node</code>。</p>
+<h3 id="四、npm、webpack和node之间的联系"><a href="#四、npm、webpack和node之间的联系" class="headerlink" title="四、npm、webpack和node之间的联系"></a>四、npm、webpack和node之间的联系</h3><p><code>webpack</code> 是 <code>npm</code> 生态中的一个模块，<code>webpack</code> 的运行依赖于 <code>node</code> 的环境，没有 <code>node</code> 是不能打包的。<br>但是 <code>webpack</code> 打包后的项目本身只是前端静态资源，和后台没有关系，也就是说不依赖于 <code>node</code>，只要有后台能力的都可以部署项目。</p>
+
+        </div>
+
+        
+            <div class="post-copyright-info">
+                <div class="article-copyright-info-container">
+    <ul>
+        <li>本文标题：关于Webpack，npm、Node的简单介绍</li>
+        <li>本文作者：thornboo</li>
+        <li>创建时间：2022-04-18 21:38:39</li>
+        <li>
+            本文链接：https://thornboo.github.io/2022/04/18/关于Webpack，npm、Node的简单介绍/
+        </li>
+        <li>
+            版权声明：本博客所有文章除特别声明外，均采用 <a class="license" target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh">BY-NC-SA</a> 许可协议。转载请注明出处！
+        </li>
+    </ul>
+</div>
+
+            </div>
+        
+
+        
+            <ul class="post-tags-box">
+                
+                    <li class="tag-item">
+                        <a href="/tags/%E6%80%BB%E7%BB%93/">#总结</a>&nbsp;
+                    </li>
+                
+            </ul>
+        
+
+        
+            <div class="article-nav">
+                
+                    <div class="article-prev">
+                        <a class="prev"
+                           rel="prev"
+                           href="/2022/04/18/Git-Commit-message-%E8%A7%84%E8%8C%83%E6%8C%87%E5%8D%97/"
+                        >
+                            <span class="left arrow-icon flex-center">
+                              <i class="fas fa-chevron-left"></i>
+                            </span>
+                            <span class="title flex-center">
+                                <span class="post-nav-title-item">Git Commit message 规范指南</span>
+                                <span class="post-nav-item">上一篇</span>
+                            </span>
+                        </a>
+                    </div>
+                
+                
+                    <div class="article-next">
+                        <a class="next"
+                           rel="next"
+                           href="/2022/04/18/python%E4%B9%8Bpip%E7%9A%84%E5%B8%B8%E8%A7%81%E6%93%8D%E4%BD%9C/"
+                        >
+                            <span class="title flex-center">
+                                <span class="post-nav-title-item">python之pip的常见操作</span>
+                                <span class="post-nav-item">下一篇</span>
+                            </span>
+                            <span class="right arrow-icon flex-center">
+                              <i class="fas fa-chevron-right"></i>
+                            </span>
+                        </a>
+                    </div>
+                
+            </div>
+        
+
+        
+            <div class="comment-container">
+                <div class="comments-container">
+    <div id="comment-anchor"></div>
+    <div class="comment-area-title">
+        <i class="fas fa-comments">&nbsp;评论</i>
+    </div>
+    
+
+        
+            
+    <div id="gitalk-container"></div>
+    <script data-pjax
+            src="//cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js"></script>
+    <script data-pjax>
+
+        function loadGitalk() {
+            let __gitalk__pathname = decodeURI(location.pathname);
+            const __gitalk__pathnameLength = __gitalk__pathname.length;
+            const __gitalk__pathnameMaxLength = 50;
+            if (__gitalk__pathnameLength > __gitalk__pathnameMaxLength) {
+                __gitalk__pathname = __gitalk__pathname.substring(0, __gitalk__pathnameMaxLength - 3) + '...';
+            }
+
+            try {
+                Gitalk && new Gitalk({
+                    clientID: '5a587300d1cc759218a8',
+                    clientSecret: 'ca552df0666567b315934034de182a9955f54441',
+                    repo: 'thornboo.github.io',
+                    owner: 'thornboo',
+                    admin: ['thornboo'],
+                    id: __gitalk__pathname,
+                    language: 'zh-CN'
+                }).render('gitalk-container');
+
+            } catch (e) {
+                window.Gitalk = null;
+            }
+        }
+
+        if ('true') {
+            const loadGitalkTimeout = setTimeout(() => {
+                loadGitalk();
+                clearTimeout(loadGitalkTimeout);
+            }, 1000);
+        } else {
+            window.addEventListener('DOMContentLoaded', loadGitalk);
+        }
+    </script>
+
+
+
+        
+    
+</div>
+
+            </div>
+        
+    </div>
+</div>
+
+
+                
+            </div>
+
+        </div>
+
+        <div class="page-main-content-bottom">
+            <footer class="footer">
+    <div class="info-container">
+        <div class="copyright-info info-item">
+            &copy;
+            
+              <span>2020</span>
+              -
+            
+            2022&nbsp;<i class="fas fa-heart icon-animate"></i>&nbsp;<a href="/">thornboo</a>
+        </div>
+        
+            <script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+            <div class="website-count info-item">
+                
+                    <span id="busuanzi_container_site_uv">
+                        访问人数&nbsp;<span id="busuanzi_value_site_uv"></span>&ensp;
+                    </span>
+                
+                
+                    <span id="busuanzi_container_site_pv">
+                        总访问量&nbsp;<span id="busuanzi_value_site_pv"></span>
+                    </span>
+                
+            </div>
+        
+        <div class="theme-info info-item">
+            由 <a target="_blank" href="https://hexo.io">Hexo</a> 驱动&nbsp;|&nbsp;主题&nbsp;<a class="theme-version" target="_blank" href="https://github.com/XPoet/hexo-theme-keep">Keep v3.4.5</a>
+        </div>
+        
+        
+    </div>
+</footer>
+
+        </div>
+    </div>
+
+    
+        <div class="post-tools">
+            <div class="post-tools-container">
+    <ul class="tools-list">
+        <!-- TOC aside toggle -->
+        
+            <li class="tools-item page-aside-toggle">
+                <i class="fas fa-outdent"></i>
+            </li>
+        
+
+        <!-- go comment -->
+        
+            <li class="go-comment">
+                <i class="fas fa-comment"></i>
+            </li>
+        
+    </ul>
+</div>
+
+        </div>
+    
+
+    <div class="right-bottom-side-tools">
+        <div class="side-tools-container">
+    <ul class="side-tools-list">
+        <li class="tools-item tool-font-adjust-plus flex-center">
+            <i class="fas fa-search-plus"></i>
+        </li>
+
+        <li class="tools-item tool-font-adjust-minus flex-center">
+            <i class="fas fa-search-minus"></i>
+        </li>
+
+        <li class="tools-item tool-expand-width flex-center">
+            <i class="fas fa-arrows-alt-h"></i>
+        </li>
+
+        <li class="tools-item tool-dark-light-toggle flex-center">
+            <i class="fas fa-moon"></i>
+        </li>
+
+        <!-- rss -->
+        
+            <li class="tools-item rss flex-center">
+                <a class="flex-center"
+                   href="/atom.xml"
+                   target="_blank"
+                >
+                    <i class="fas fa-rss"></i>
+                </a>
+            </li>
+        
+
+        
+
+        <li class="tools-item tool-scroll-to-bottom flex-center">
+            <i class="fas fa-arrow-down"></i>
+        </li>
+    </ul>
+
+    <ul class="exposed-tools-list">
+        <li class="tools-item tool-toggle-show flex-center">
+            <i class="fas fa-cog fa-spin"></i>
+        </li>
+        
+            <li class="tools-item tool-scroll-to-top flex-center">
+                <i class="arrow-up fas fa-arrow-up"></i>
+                <span class="percent"></span>
+            </li>
+        
+    </ul>
+</div>
+
+    </div>
+
+    
+        <aside class="page-aside">
+            <div class="post-toc-wrap">
+    <div class="post-toc">
+        <ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%80%E3%80%81npm%E7%9B%B8%E5%85%B3"><span class="nav-text">一、npm相关</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1%E3%80%81%E4%BB%8B%E7%BB%8D"><span class="nav-text">1、介绍</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2%E3%80%81npm%E7%9A%84%E5%85%A8%E5%B1%80%E5%AE%89%E8%A3%85%E5%92%8C%E5%B1%80%E9%83%A8%E5%AE%89%E8%A3%85%EF%BC%88-save-%E5%92%8C-dev-%E5%8C%BA%E5%88%AB%EF%BC%89"><span class="nav-text">2、npm的全局安装和局部安装（ --save 和 --dev 区别）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3%E3%80%81npm%E6%9B%B4%E6%8D%A2%E9%95%9C%E5%83%8F%E6%BA%90"><span class="nav-text">3、npm更换镜像源</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#4%E3%80%81%E5%A6%82%E4%BD%95%E6%9F%A5%E7%9C%8B%E5%85%A8%E5%B1%80%E5%92%8C%E5%B1%80%E9%83%A8%E7%9A%84%E5%8C%85"><span class="nav-text">4、如何查看全局和局部的包</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#5%E3%80%81npm-%E5%92%8C-cnpm-%E7%9A%84%E5%8C%BA%E5%88%AB%EF%BC%8C%E4%BC%9A%E4%B8%8D%E4%BC%9A%E4%BA%A7%E7%94%9F%E5%86%B2%E7%AA%81"><span class="nav-text">5、npm 和 cnpm 的区别，会不会产生冲突</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#6%E3%80%81npm%E5%A6%82%E4%BD%95%E6%9B%B4%E6%8D%A2%E5%8C%85%E7%9A%84%E7%89%88%E6%9C%AC"><span class="nav-text">6、npm如何更换包的版本</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BA%8C%E3%80%81webpack%E7%9B%B8%E5%85%B3"><span class="nav-text">二、webpack相关</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%89%E3%80%81node%E7%9B%B8%E5%85%B3"><span class="nav-text">三、node相关</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%9B%9B%E3%80%81npm%E3%80%81webpack%E5%92%8Cnode%E4%B9%8B%E9%97%B4%E7%9A%84%E8%81%94%E7%B3%BB"><span class="nav-text">四、npm、webpack和node之间的联系</span></a></li></ol>
+    </div>
+</div>
+        </aside>
+    
+
+    <div class="image-viewer-container">
+    <img src="">
+</div>
+
+
+    
+        <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+          <span class="search-input-field-pre">
+            <i class="fas fa-keyboard"></i>
+          </span>
+            <div class="search-input-container">
+                <input autocomplete="off"
+                       autocorrect="off"
+                       autocapitalize="off"
+                       placeholder="搜索..."
+                       spellcheck="false"
+                       type="search"
+                       class="search-input"
+                >
+            </div>
+            <span class="popup-btn-close">
+                <i class="fas fa-times"></i>
+            </span>
+        </div>
+        <div id="search-result">
+            <div id="no-result">
+                <i class="fas fa-spinner fa-pulse fa-5x fa-fw"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+    
+
+</main>
+
+
+
+<script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/utils.js"></script><script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/main.js"></script><script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/header-shrink.js"></script><script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/back2top.js"></script><script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/dark-light-toggle.js"></script>
+
+
+    <script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/local-search.js"></script>
+
+
+
+    <script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/code-copy.js"></script>
+
+
+
+    <script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/lazyload.js"></script>
+
+
+<div class="post-scripts pjax">
+    
+        <script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/left-side-toggle.js"></script><script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/libs/anime.min.js"></script><script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/toc.js"></script>
+    
+</div>
+
+
+    <script src="//cdn.jsdelivr.net/npm/hexo-theme-keep@3.4.5/source/js/libs/pjax.min.js"></script>
+<script>
+    window.addEventListener('DOMContentLoaded', () => {
+        window.pjax = new Pjax({
+            selectors: [
+                'head title',
+                '.page-container',
+                '.pjax'
+            ],
+            history: true,
+            debug: false,
+            cacheBust: false,
+            timeout: 0,
+            analytics: false,
+            currentUrlFullReload: false,
+            scrollRestoration: false,
+            // scrollTo: true,
+        });
+
+        document.addEventListener('pjax:send', () => {
+            KEEP.utils.pjaxProgressBarStart();
+        });
+
+        document.addEventListener('pjax:complete', () => {
+            KEEP.utils.pjaxProgressBarEnd();
+            window.pjax.executeScripts(document.querySelectorAll('script[data-pjax], .pjax script'));
+            KEEP.refresh();
+        });
+    });
+</script>
+
+
+
+</body>
+</html>
