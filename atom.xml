@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Thornboo Blog</title>
+  
+  <subtitle>thornboo的博客</subtitle>
+  <link href="https://thornboo.github.io/atom.xml" rel="self"/>
+  
+  <link href="https://thornboo.github.io/"/>
+  <updated>2023-10-10T09:58:09.000Z</updated>
+  <id>https://thornboo.github.io/</id>
+  
+  <author>
+    <name>thornboo</name>
+    
+  </author>
+  
+  <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>【RocketMQ】RocketMQ存储结构设计 - shanml - 博客园</title>
+    <link href="https://thornboo.github.io/post/rocketmq-rocketmq-storage-structure-design-shanml-blog-park-zmavt4.html"/>
+    <id>https://thornboo.github.io/post/rocketmq-rocketmq-storage-structure-design-shanml-blog-park-zmavt4.html</id>
+    <published>2023-10-10T09:45:17.000Z</published>
+    <updated>2023-10-10T09:58:09.000Z</updated>
+    
+    <content type="html"><![CDATA[<h1 id="【RocketMQ】RocketMQ存储结构设计-shanml-博客园"><a href="#【RocketMQ】RocketMQ存储结构设计-shanml-博客园" class="headerlink" title="【RocketMQ】RocketMQ存储结构设计 - shanml - 博客园"></a>【RocketMQ】RocketMQ存储结构设计 - shanml - 博客园</h1><hr><ul><li><a class="link"   href="https://www.cnblogs.com/shanml/p/17703297.html" >https://www.cnblogs.com/shanml/p/17703297.html<i class="fas fa-external-link-alt"></i></a></li><li>CommitLog 生产者向Broker发送的消息，会以顺序写的方式，写入CommitLog文件，CommitLog文件的根目录由配置参数storePathRootDir决定，默认每一个CommitLog的文件大小为1G，如果文件写满会新建一个CommitLog文件，以该文件中第一条消息的偏移量为文</li><li>2023-10-10 09:45:17</li></ul><hr><h3 id="CommitLog"><a href="#CommitLog" class="headerlink" title="CommitLog"></a>CommitLog</h3><p>　　生产者向Broker发送的消息，会以顺序写的方式，写入CommitLog文件，CommitLog文件的根目录由配置参数storePathRootDir决定，默认每一个CommitLog的文件大小为1G，如果文件写满会新建一个CommitLog文件，以该文件中第一条消息的偏移量为文件名，小于20位用0补齐：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914193652163-372047212-20231010094517-s89cpqh.png"                                     ><br>比如第一个文件中第一条消息的偏移量为0，那么第一个文件的名称为00000000000000000000，当这个文件存满之后，需要重新建立一个CommitLog文件，一个文件大小为1G，<br>1GB &#x3D; 1024<em>1024</em>1024 &#x3D; 1073741824 Bytes，所以下一个文件就会被命名为00000000001073741824。</p><h4 id="数据格式"><a href="#数据格式" class="headerlink" title="数据格式"></a>数据格式</h4><p>　　CommitLog中存储的每条消息的数据格式如下：</p><ul><li>消息总长度，占4个字节；</li><li>魔数，占4个字节；</li><li>消息体CRC校验和，占4个字节；</li><li>队列ID，占4个字节；</li><li>标识，占4个字节；</li><li>队列的偏移量，占8个字节；</li><li>消息在文件的物理偏移量，占8个字节；</li><li>系统标识，占4个字节；</li><li>发送消息的时间戳，占8个字节；</li><li>发送消息的主机地址，占8个字节；</li><li>存储时间戳，占8个字节；</li><li>存储消息的主机地址，占8个字节；</li><li>消息的重试次数，占4个字节；</li><li>事务相关偏移量，占8个字节；</li><li>消息内容的长度，占4个字节；</li><li>消息内容，由于消息内容不固定，所以长度不固定；</li><li>主题名称的长度，占1个字节；</li><li>主题名称内容，长度不固定；</li><li>消息属性长度，占2个字节；</li><li>消息属性内容，长度不固定；</li></ul><p>　　​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20231008072516949-1033589554-20231010094517-3nuyt4f.png"                                     >​</p><p>　　RocketMQ一般会保存一个物理偏移量offSet，从CommitLog中获取消息内容。</p><h3 id="ConsumeQueue"><a href="#ConsumeQueue" class="headerlink" title="ConsumeQueue"></a>ConsumeQueue</h3><p>　　RocketMQ在消息存储的时候将消息顺序写入CommitLog文件，如果想根据Topic对消息进行查找，需要扫描所有CommitLog文件，这种方式性能低下，所以RocketMQ又设计了ConsumeQueue存储消息的逻辑偏移量，offset逻辑偏移量从0开始编号，进行递增，消息写入CommitLog以后，会构建对应的 ConsumeQueue文件。<br>在RocketMQ的存储文件目录下，有一个consumequeue文件夹，里面按Topic分组，每个Topic一个文件夹，Topic文件夹内是该Topic的所有消息队列，以消息队列ID命名文件夹，每个消息队列都有自己对应的ConsumeQueue文件：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914193845640-1021183829-20231010094518-hrjdooy.png"                                     >​</p><p>　　ConsumeQueue中存储的每条数据大小是固定的，总共20个字节，数据格式如下：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914193804963-1569934890-20231010094518-r753hyn.png"                                     >​</p><ul><li>消息在CommitLog文件的偏移量，占用8个字节；</li><li>消息大小，占用4个字节；</li><li>消息Tag的hashcode值，用于tag过滤，占用8个字节；</li></ul><p>　　​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914193926546-2070261772-20231010094518-cpwx1h9.png"                                     >​</p><p>　　<strong>消费进度</strong><br>消费者在拉取消息进行消费的时候，就是通过这个ConsumeQueue实现的，消费者在向Broker发送消息拉取请求之前，需要知道应该从哪条消息开始消费，对于广播模式，消息的消费进度保存在消费者端本地，对于集群模式，消息的消费进度保存在Broker中，所以拉取某个消息队列的消息之前，会向Broker发送请求，获取该消息队列的消费进度，消费进度在RocketMQ的存储目录中有一个对应的文件，叫<code>consumerOffset.json</code>​，里面的offsetTable中保存了每个消息队列的消费进度，这个消费进度值对应的就是ConsumeQueue中的逻辑偏移量，它由定时任务定时进行持久化：</p><figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line"><span class="attr">&quot;offsetTable&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span></span><br><span class="line"><span class="attr">&quot;TestTopic@TestTopicGroup&quot;</span><span class="punctuation">:</span><span class="punctuation">&#123;</span> <span class="comment">// 主题名称@消费者组名称</span></span><br><span class="line">            <span class="number">0</span><span class="punctuation">:</span><span class="number">0</span><span class="punctuation">,</span> <span class="comment">// 每个消息队列对应的消费进度，Key中的0表示队列0，value中的0表示消息在ConsumeQueue中的逻辑偏移量</span></span><br><span class="line">            <span class="number">1</span><span class="punctuation">:</span><span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">            <span class="number">2</span><span class="punctuation">:</span><span class="number">1</span><span class="punctuation">,</span></span><br><span class="line">            <span class="number">3</span><span class="punctuation">:</span><span class="number">0</span>  </span><br><span class="line"><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure><p>　　拿到消息队列对应的消费进度时，就可以根据这个值从Broker拉取消息，Broker收到请求后，会根据这个值从ConsumeQueue中获取此条消息在CommitLog中的物理偏移量，根据物理偏移量再从CommitLog中获取消息内容返回给消费者。</p><p>　　​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20231004120013724-695219800-20231010094518-wsxnokn.png"                                     >​</p><p>　　总结</p><p>　　<strong>当消息写入CommitLog之后会构建对应的ConsumeQueue文件，每个消息队列MessageQueue都会有一个对应的ConsumeQueue文件，ConsumeQueue文件中的offset记录的是消息的逻辑索引，从0开始编号进行递增，比如存入了3条消息，那么对应的offset分别为0、1、2，消费者在消费的时候拿到的消费进度就是这个offset，然后根据offset从ConsumeQueue文件中获取数据，里面记录了消息在CommitLog文件中的物理偏移量，之后就可以从CommitLog中获取消息内容。</strong></p><p>　　<strong>消费者消费完毕之后，会保存这个消费进度，对于集群模式，消费进度会保存在Borker端，Broker会定时将消费进度进行持久化，如果消费者刚启动的时候，会向Broker发起请求获取之前记录的消费进度。</strong></p><h3 id="IndexFile"><a href="#IndexFile" class="headerlink" title="IndexFile"></a>IndexFile</h3><p>　　为了便于消息查找，RocketMQ还设计了IndexFile，支持根据Key对消息进行查找，在发送消息的时候可以设置一个唯一Keys值，用于标识这条消息，之后就可以根据这个Keys值对消息进行查找。</p><blockquote><p>Keys: 服务器会根据 keys 创建哈希索引，设置后，可以在 Console 系统根据 Topic、Keys 来查询消息，由于是哈希索引，请尽可能保证 key 唯一，例如订单号，商品 Id 等。</p></blockquote><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Message</span> <span class="variable">msg</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Message</span>(topic, RandomUtils.getStringByUUID().getBytes());</span><br><span class="line"><span class="comment">// 订单Id</span></span><br><span class="line"><span class="type">String</span> <span class="variable">orderId</span> <span class="operator">=</span> <span class="string">&quot;20034568923546&quot;</span>;</span><br><span class="line">msg.setKeys(orderId);</span><br></pre></td></tr></table></figure><h4 id="IndexFile文件结构"><a href="#IndexFile文件结构" class="headerlink" title="IndexFile文件结构"></a>IndexFile文件结构</h4><p>　　每个indexFile文件的大小是固定的，一个IndexFile文件大约可以保存2000W个消息的索引，IndexFile的文件结构如下：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914193955264-893081424-20231010094518-irv0ib5.png"                                     >​</p><p>　　<strong>IndexHeader</strong><br>index header记录indexFile文件的整体信息，占40个字节，有以下信息：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914194033788-1306920799-20231010094518-a3xj55l.png"                                     >​</p><ul><li>beginTimestamp：当前indexFile文件中第一条消息的存储时间；</li><li>endTimestamp：当前indexFile文件中最后一条消息存储时间；</li><li>beginPhyoffset：当前indexFile文件中第一条消息在Commitlog中的偏移量；</li><li>endPhyoffset：当前indexFile文件中最后一条消息在commitlog中的偏移量；</li><li>hashSlotCount：已经使用的hash槽的个数；</li><li>indexCount：索引项中记录的所有消息索引总数；</li></ul><p>　　<strong>hash slot</strong><br>RocketMQ在每个IndexFile文件中划分了500W个hash槽，在向文件中添加消息索引的时候，会取出消息的Keys（实际会使用Topic + “#” + key进行拼装做为IndexFile文件的Key）计算hash值，然后对hash槽总数取余，来判断应该放到哪个hash槽。</p><p>　　<strong>index item</strong><br>索引项中记录每个Key的索引信息，有以下部分组成：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914194050605-222613465-20231010094519-hfltf50.png"                                     >​</p><ul><li>keyHash：消息的key计算出来的的hashcode值，</li><li>phyOffset：消息在CommitLog中的物理偏移量；</li><li>timeDiff：消息的存储时间减去IndexHeader中的beginTimestamp（当前indexFile文件中第一条消息的存储时间）；</li><li>preIndexNo：当哈希冲突的时候，用于指向上一个索引，可以看做当哈希冲突的时候，使用一个链表将该哈希槽下的所有元素串起来，使用头插法增加新的元素；</li></ul><p>　　<strong>消息索引添加</strong><br>举个例子，比如现在有一条消息，它的Key值1，假设哈希槽的个数为10，这里对哈希计算简化，直接用1对哈希槽个数取余，得到值为0，那么这条消息将落入哈希槽0的位置，然后会在索引项区域建立该消息的索引信息：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914194116293-785640873-20231010094519-lhthz17.png"                                     >​</p><p>　　如果新增一条消息2，它的Key值为2，用2对哈希槽个数取余，依旧得到哈希槽0，此时产生哈希冲突，将哈希槽0处存储的值改为消息2的索引项，并将消息2索引项中的preIndexNo指向消息1的索引项，形成一个链表：<br>​<img                       lazyload                     src="/images/loading.svg"                     data-src="/assets/net-img-2612945-20230914194126167-364022403-20231010094519-ubn7e03.png"                                     >​</p><p>　　<strong>参考</strong><br><a class="link"   href="https://juejin.cn/post/7068808709254119431" >孤翁-进阶篇 RocketMQ 原理之key查询<i class="fas fa-external-link-alt"></i></a><br><a class="link"   href="https://www.cnblogs.com/roylee666/p/15766236.html" >迟钝先生-RocketMQ的Index File<i class="fas fa-external-link-alt"></i></a></p>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h1 id=&quot;【RocketMQ】RocketMQ存储结构设计-shanml-博客园&quot;&gt;&lt;a href=&quot;#【RocketMQ】RocketMQ存储结构设计-shanml-博客园&quot; class=&quot;headerlink&quot; title=&quot;【RocketMQ】RocketMQ存储结构</summary>
+      
+    
+    
+    
+    
+  </entry>
+  
+  <entry>
+    <title>测试</title>
+    <link href="https://thornboo.github.io/post/test-elan8.html"/>
+    <id>https://thornboo.github.io/post/test-elan8.html</id>
+    <published>2023-10-10T00:06:24.000Z</published>
+    <updated>2023-10-10T00:32:44.000Z</updated>
+    
+    <content type="html"><![CDATA[<h1 id="测试"><a href="#测试" class="headerlink" title="测试"></a>测试</h1><p>‍</p>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h1 id=&quot;测试&quot;&gt;&lt;a href=&quot;#测试&quot; class=&quot;headerlink&quot; title=&quot;测试&quot;&gt;&lt;/a&gt;测试&lt;/h1&gt;&lt;p&gt;‍&lt;/p&gt;
+</summary>
+      
+    
+    
+    
+    
+  </entry>
+  
+  <entry>
+    <title>vue-cli项目迁移到vite遇到的问题和解决办法</title>
+    <link href="https://thornboo.github.io/2022/09/23/vue-cli%E9%A1%B9%E7%9B%AE%E8%BF%81%E7%A7%BB%E5%88%B0vite%E9%81%87%E5%88%B0%E7%9A%84%E9%97%AE%E9%A2%98%E5%92%8C%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95/"/>
+    <id>https://thornboo.github.io/2022/09/23/vue-cli%E9%A1%B9%E7%9B%AE%E8%BF%81%E7%A7%BB%E5%88%B0vite%E9%81%87%E5%88%B0%E7%9A%84%E9%97%AE%E9%A2%98%E5%92%8C%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95/</id>
+    <published>2022-09-23T17:32:09.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="为什么要迁移到vite？"><a href="#为什么要迁移到vite？" class="headerlink" title="为什么要迁移到vite？"></a>为什么要迁移到vite？</h2><p>主要是构建速度上的差别，除此之外Vite也有一些其他的优势：</p><ul><li>构建速度：Vite相比Vue CLI最显著的优势应该就是构建速度，Vite基于esbuild预构建依赖，所以速度会快很多。</li><li>打包方式更快</li></ul><h2 id="迁移之后配置文件改变"><a href="#迁移之后配置文件改变" class="headerlink" title="迁移之后配置文件改变"></a>迁移之后配置文件改变</h2><p>迁移后 vue.config.js 就不再使用了，使用vite.config.js文件来配置项目。其中配置相比vue.config.js更复杂一点，配置项更多。</p><h2 id="入口文件路径改变"><a href="#入口文件路径改变" class="headerlink" title="入口文件路径改变"></a>入口文件路径改变</h2><p>与Vue CLI不同，Vite会将index.html文件放置在项目的根目录中，而不是public目录中，因此需要移动它。并且在index.html我们也需要做一些改变：</p><ul><li>需要把“&lt;%&#x3D;BASE_URL%&gt;”占位符改为绝对路径。</li><li>需要将&lt;%&#x3D; htmlWebpackPlugin.options.title %&gt;占位符改为硬编码值。</li><li>应用程序不是自动注入的，所以需要手动引入。</li></ul><h2 id="测试"><a href="#测试" class="headerlink" title="测试"></a>测试</h2>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h2 id=&quot;为什么要迁移到vite？&quot;&gt;&lt;a href=&quot;#为什么要迁移到vite？&quot; class=&quot;headerlink&quot; title=&quot;为什么要迁移到vite？&quot;&gt;&lt;/a&gt;为什么要迁移到vite？&lt;/h2&gt;&lt;p&gt;主要是构建速度上的差别，除此之外Vite也有一些其他的优势：</summary>
+      
+    
+    
+    
+    
+  </entry>
+  
+  <entry>
+    <title>npm WARN config global ,解决方法</title>
+    <link href="https://thornboo.github.io/2022/09/23/npm-WARN-config-global-%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95/"/>
+    <id>https://thornboo.github.io/2022/09/23/npm-WARN-config-global-%E8%A7%A3%E5%86%B3%E6%96%B9%E6%B3%95/</id>
+    <published>2022-09-23T17:22:56.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="出现问题原因"><a href="#出现问题原因" class="headerlink" title="出现问题原因"></a>出现问题原因</h2><p>在安装配置node时，检查node没问题，但是检查npm就出现npm warn config global <code>--global</code>, <code>--local</code> are deprecated. use <code>--location=global</code> instead.的报警；<br>问题出在以前版本npm的命令一般时XXX -g 但是随着版本更替，这个老方法已被弃用，</p><h2 id="解决方法"><a href="#解决方法" class="headerlink" title="解决方法"></a>解决方法</h2><ol><li><p>修改npm的配置项（不推荐）</p><ol><li>需要修改两个文件npm和npm.cmd，</li><li>将npm文件的第23行，修改为<code>prefix --location=global</code></li><li>将npm.cmd文件的第12行，修改为<code>prefix --location=global</code></li></ol></li><li><p>配置全局 ‘–global’</p><ol><li>使用命令更新npm版本 <code>npm install -g npm</code></li><li>但是过程中可能会发生<code>Unexpected token &#39;.&#39;</code> 这个错误，而这个错误其实并不是 Node 和 npm 的问题，而是 nvm-windows 的问题导致的，直接重启就能解决。</li><li>然后使用管理员身份启动终端去更新npm版本即可。</li></ol></li></ol>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h2 id=&quot;出现问题原因&quot;&gt;&lt;a href=&quot;#出现问题原因&quot; class=&quot;headerlink&quot; title=&quot;出现问题原因&quot;&gt;&lt;/a&gt;出现问题原因&lt;/h2&gt;&lt;p&gt;在安装配置node时，检查node没问题，但是检查npm就出现npm warn config global </summary>
+      
+    
+    
+    
+    
+  </entry>
+  
+  <entry>
+    <title>yarn和npm的区别以及yarn的用法</title>
+    <link href="https://thornboo.github.io/2022/09/23/yarn%E5%92%8Cnpm%E7%9A%84%E5%8C%BA%E5%88%AB%E4%BB%A5%E5%8F%8Ayarn%E7%9A%84%E7%94%A8%E6%B3%95/"/>
+    <id>https://thornboo.github.io/2022/09/23/yarn%E5%92%8Cnpm%E7%9A%84%E5%8C%BA%E5%88%AB%E4%BB%A5%E5%8F%8Ayarn%E7%9A%84%E7%94%A8%E6%B3%95/</id>
+    <published>2022-09-23T16:48:57.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="什么是yarn？"><a href="#什么是yarn？" class="headerlink" title="什么是yarn？"></a>什么是yarn？</h2><p>yarn和npm都是JS包管理工具，且yarn是为了弥补npm中的缺陷而出现的。</p><h2 id="两者的区别"><a href="#两者的区别" class="headerlink" title="两者的区别"></a>两者的区别</h2><ul><li>yarn比npm速度快：</li><li>yarn使用的是异步安装，而npm使用的是同步安装</li><li>yarn安装过程信息很干净，npm会罗列很多其它包的信息</li><li>yarn安装后是有个yarn.lock文件，这个文件是会锁定你安装的版本，别人安装时会直接读取yarn.lock文件，这样可以保证安装的依赖的版本是一样的，npm在5.x.x的版本也引入了这个机制，它的文件叫package-lock.json</li></ul><h2 id="yarn优点"><a href="#yarn优点" class="headerlink" title="yarn优点"></a>yarn优点</h2><ul><li>速度快</li><li>安装版本统一</li><li>更简洁的输出</li></ul>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h2 id=&quot;什么是yarn？&quot;&gt;&lt;a href=&quot;#什么是yarn？&quot; class=&quot;headerlink&quot; title=&quot;什么是yarn？&quot;&gt;&lt;/a&gt;什么是yarn？&lt;/h2&gt;&lt;p&gt;yarn和npm都是JS包管理工具，且yarn是为了弥补npm中的缺陷而出现的。&lt;/p&gt;
+&lt;</summary>
+      
+    
+    
+    
+    
+  </entry>
+  
+  <entry>
+    <title>新手使用树莓派的总结</title>
+    <link href="https://thornboo.github.io/2022/04/19/%E6%96%B0%E6%89%8B%E4%BD%BF%E7%94%A8%E6%A0%91%E8%8E%93%E6%B4%BE%E7%9A%84%E6%80%BB%E7%BB%93/"/>
+    <id>https://thornboo.github.io/2022/04/19/%E6%96%B0%E6%89%8B%E4%BD%BF%E7%94%A8%E6%A0%91%E8%8E%93%E6%B4%BE%E7%9A%84%E6%80%BB%E7%BB%93/</id>
+    <published>2022-04-19T21:10:32.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h2 id="一、安装系统"><a href="#一、安装系统" class="headerlink" title="一、安装系统"></a>一、安装系统</h2><ol><li>准备工具：一张大于8GB的SD卡、读卡器、树莓派一个、HDMI线（可无）、type-c充电线、支持 HDMI 输入的显示器（可无）、键盘鼠标（可无）。</li><li>首先，需要先从官方下载页面<a class="link"   href="https://www.kali.org/get-kali/" >下载Kali Linux镜像<i class="fas fa-external-link-alt"></i></a>。在下载页面上找到ARM版本的镜像（img）进行下载到本地并进行解压，看实际情况选择32位还是64位。下载和解压时的路径尽量不要有中文，以免出现未知的错误。</li><li>为了将Kali Linux镜像写入SD卡，利用一款名为<a class="link"   href="https://sourceforge.net/projects/win32diskimager/" >“win 32 disk imager”<i class="fas fa-external-link-alt"></i></a>的软件进行系统的写入。但是在这之前，最好先使用<a class="link"   href="https://www.sdcard.org/downloads/formatter/" >“SD Formatter”<i class="fas fa-external-link-alt"></i></a>将SD卡进行格式化。进入win32 disk imager之后选择下载的镜像，点击写入即可。这个过程可能需要一些时间，因为它在写入镜像后会验证SD卡。</li></ol><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/clipboard.5kzg2vvlwjw0.webp"                      width="400" height="400"                ><ol><li><p>系统写入完成后，分有无显示器两种情况。</p><ol><li>无显示器情况下：<br>配置SSH：<br>在boot目录下新建空文件ssh，注意没有任何后缀。<br>配置无线网络：<br>在boot目录下新建文件wpa_supplicant.conf, 内容如下：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">country=CN</span><br><span class="line">ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev</span><br><span class="line">update_config=1</span><br><span class="line"></span><br><span class="line">network=&#123;</span><br><span class="line">ssid=&quot;名称，使用英语，保留引号&quot;</span><br><span class="line">psk=&quot;密码，保留引号&quot;</span><br><span class="line">priority=1    #优先级</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></li><li>有显示器情况下：<br>直接将树莓派连接上显示器，然后进行联网，最后使用ifconfig即可知道ip。然后就可以使用SSH连接树莓派进行操作了。</li></ol></li><li><p>kali系统使用时的默认用户名为：kali， 密码也为：kali。</p></li></ol><h2 id="二、更换软件源"><a href="#二、更换软件源" class="headerlink" title="二、更换软件源"></a>二、更换软件源</h2><ol><li><p>只要编辑&#x2F;etc&#x2F;apt&#x2F;sources.list 文件：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo nano /etc/apt/sources.list</span><br></pre></td></tr></table></figure></li><li><p>删除原文件所有内容，用以下内容取代：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">deb http://mirror.sysu.edu.cn/raspbian/raspbian/jessiemain contrib non-free</span><br><span class="line">deb-src http://mirror.sysu.edu.cn/raspbian/raspbian/jessiemain contrib non-free</span><br></pre></td></tr></table></figure></li></ol><h2 id="三、系统更新安装包问题"><a href="#三、系统更新安装包问题" class="headerlink" title="三、系统更新安装包问题"></a>三、系统更新安装包问题</h2><ol><li><p>成功进入系统后，首先联网升级一下软件包，使用下面两个命令：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo apt update</span><br><span class="line">sudo apt upgrade</span><br></pre></td></tr></table></figure></li><li><p>其中可能出现的升级问题：<br>对apt软件包进行更新时报错：You don’t have enough free space in &#x2F;var&#x2F;cache&#x2F;apt&#x2F;archives&#x2F;.这是说明磁盘内存不够用了，可以使用软连接到其他内存大一点的目录下进行安装：</p><ol><li>首先清除原有的apt配置文件：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo rm -rf /var/cache/apt/archives</span><br></pre></td></tr></table></figure></li><li>然后在内存大的目录下创建新的文件夹：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo mkdir /dev/debs/partial</span><br></pre></td></tr></table></figure></li><li>然后进行软连接：<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo ln -s &quot;/dev/debs/partial&quot; /var/cache/apt/archives</span><br></pre></td></tr></table></figure></li><li>注意：不删除原有配置文件的话，会导致同样的报错。</li></ol></li></ol><h2 id="四、安装中文输入法"><a href="#四、安装中文输入法" class="headerlink" title="四、安装中文输入法"></a>四、安装中文输入法</h2><ol><li><p>中文字库安装完成之后，还需要安装一个中文输入法。输入如下命令：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">apt-get -y install ttf-wqy-zenhei</span><br></pre></td></tr></table></figure></li><li><p>继续安装相关包：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">apt-get -y install scim-pinyin</span><br></pre></td></tr></table></figure></li><li><p>安装完毕后输入：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">raspi-config</span><br></pre></td></tr></table></figure></li><li><p>然后选择Internationalisation options，然后选择change_locale，在Default locale for the system environment:中选择zh_CN.UTF-8,配置完成之后，输入命令：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">reboot</span><br></pre></td></tr></table></figure></li><li><p>命令之后重启即可显示中文。</p></li></ol><h2 id="五、使用时的注意事项"><a href="#五、使用时的注意事项" class="headerlink" title="五、使用时的注意事项"></a>五、使用时的注意事项</h2><ol><li>树莓派的电流大小一般稳定在：3.0A可以正常工作。 但是如果连接键盘和鼠标等外设的话，则需要计算一下电流电压再选择合适的电源适配器，以确保树莓派能够正常工作。</li><li>使用sd卡安装系统过后，有的分区内存基本上所剩无几，使用：df -h查看各个分区磁盘使用情况，尽量将所有操作软连接到磁盘较大的分区下进行操作。</li><li>禁止将树莓派的引脚短路，特别是VCC和GND，短路会造成芯片烧毁无法恢复。</li><li>SD卡烧录系统完成时，系统会提示格式化，此时不需要格式化，点击取消即可。 若点了格式化后树莓派会提示缺失文件，需要重新烧录系统。</li></ol>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h2 id=&quot;一、安装系统&quot;&gt;&lt;a href=&quot;#一、安装系统&quot; class=&quot;headerlink&quot; title=&quot;一、安装系统&quot;&gt;&lt;/a&gt;一、安装系统&lt;/h2&gt;&lt;ol&gt;
+&lt;li&gt;准备工具：一张大于8GB的SD卡、读卡器、树莓派一个、HDMI线（可无）、type-c充电线、支</summary>
+      
+    
+    
+    
+    
+    <category term="树莓派" scheme="https://thornboo.github.io/tags/%E6%A0%91%E8%8E%93%E6%B4%BE/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>Java Web项目搭建并部署Tomcat</title>
+    <link href="https://thornboo.github.io/2022/04/18/Java-Web%E9%A1%B9%E7%9B%AE%E6%90%AD%E5%BB%BA%E5%B9%B6%E9%83%A8%E7%BD%B2Tomcat/"/>
+    <id>https://thornboo.github.io/2022/04/18/Java-Web%E9%A1%B9%E7%9B%AE%E6%90%AD%E5%BB%BA%E5%B9%B6%E9%83%A8%E7%BD%B2Tomcat/</id>
+    <published>2022-04-18T22:28:05.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>对于刚接触java web的时候，部署tomcat也是一个很常见的问题。</p><h5 id="一、首先创建一个java项目，填好项目名称路径，其他什么都不用改直接下一步。"><a href="#一、首先创建一个java项目，填好项目名称路径，其他什么都不用改直接下一步。" class="headerlink" title="一、首先创建一个java项目，填好项目名称路径，其他什么都不用改直接下一步。"></a>一、首先创建一个java项目，填好项目名称路径，其他什么都不用改直接下一步。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-01.77idnqt1j6w0.webp"                      alt="java web" title="java web -1"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-02.63lsfc3rwfo0.webp"                      alt="java web" title="java web -2"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-03.3gwkl7yjs760.webp"                      alt="java web" title="java web -3"                ></p><h5 id="二、创建完成后，在项目上右键，选择Add-Framework-support-–-gt-java-EE-下选择web-application，右侧对话框选择版本和创建web-xml文件。"><a href="#二、创建完成后，在项目上右键，选择Add-Framework-support-–-gt-java-EE-下选择web-application，右侧对话框选择版本和创建web-xml文件。" class="headerlink" title="二、创建完成后，在项目上右键，选择Add Framework support –&gt; java EE 下选择web application，右侧对话框选择版本和创建web.xml文件。"></a>二、创建完成后，在项目上右键，选择Add Framework support –&gt; java EE 下选择web application，右侧对话框选择版本和创建web.xml文件。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-04.9mbb543a5pc.webp"                      alt="java web" title="java web -4"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-05.3l4az889dgo0.webp"                      alt="java web" title="java web -5"                ></p><h5 id="三、完成之后，项目结构也会随之变化。"><a href="#三、完成之后，项目结构也会随之变化。" class="headerlink" title="三、完成之后，项目结构也会随之变化。"></a>三、完成之后，项目结构也会随之变化。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-07.6js7cmz45p40.webp"                      alt="java web" title="java web -7"                ></p><h5 id="四、我们需要在WEB-INF下创建classes，lib两个文件夹。"><a href="#四、我们需要在WEB-INF下创建classes，lib两个文件夹。" class="headerlink" title="四、我们需要在WEB-INF下创建classes，lib两个文件夹。"></a>四、我们需要在WEB-INF下创建classes，lib两个文件夹。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-08.4yb2xrom6a40.webp"                      alt="图片alt" title="java web -8"                ></p><h5 id="五、编辑项目结构，按步骤选择填写编译文件输出位置，即WEB-INF下的classes文件夹。"><a href="#五、编辑项目结构，按步骤选择填写编译文件输出位置，即WEB-INF下的classes文件夹。" class="headerlink" title="五、编辑项目结构，按步骤选择填写编译文件输出位置，即WEB-INF下的classes文件夹。"></a>五、编辑项目结构，按步骤选择填写编译文件输出位置，即WEB-INF下的classes文件夹。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-09.4lefh8ynv940.webp"                      alt="图片alt" title="java web -9"                ></p><h5 id="六、添加项目依赖的jar包，jar包放在WEB-INF-x2F-lib下。"><a href="#六、添加项目依赖的jar包，jar包放在WEB-INF-x2F-lib下。" class="headerlink" title="六、添加项目依赖的jar包，jar包放在WEB-INF&#x2F;lib下。"></a>六、添加项目依赖的jar包，jar包放在WEB-INF&#x2F;lib下。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-10.10g8uuyoca8w.webp"                      alt="图片alt" title="java web -10"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-11.5v0eyrdc9dw0.webp"                      alt="图片alt" title="java web -11"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-12.7crto4sbgck0.webp"                      alt="图片alt" title="java web -12"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-13.1he4r650xlgg.webp"                      alt="图片alt" title="java web -13"                ></p><h5 id="七、接下来配置tomcat。"><a href="#七、接下来配置tomcat。" class="headerlink" title="七、接下来配置tomcat。"></a>七、接下来配置tomcat。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-14.3i43cjxerjs0.webp"                      alt="图片alt" title="java web -14"                ></p><h5 id="八、添加本地tomcat，并配置其他选项。"><a href="#八、添加本地tomcat，并配置其他选项。" class="headerlink" title="八、添加本地tomcat，并配置其他选项。"></a>八、添加本地tomcat，并配置其他选项。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-15.2uarly4jjn60.webp"                      alt="图片alt" title="java web -15"                ></p><h5 id="九、配置tomcat基本信息（版本，本地tomcat安装位置，jre等）。"><a href="#九、配置tomcat基本信息（版本，本地tomcat安装位置，jre等）。" class="headerlink" title="九、配置tomcat基本信息（版本，本地tomcat安装位置，jre等）。"></a>九、配置tomcat基本信息（版本，本地tomcat安装位置，jre等）。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-16.39i12pmygyy0.webp"                      alt="图片alt" title="java web -16"                ></p><h5 id="十、部署项目。"><a href="#十、部署项目。" class="headerlink" title="十、部署项目。"></a>十、部署项目。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-17.7hxffr8mvkg0.webp"                      alt="图片alt" title="java web -17"                ></p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-18.12ytzgm7dp1c.webp"                      alt="图片alt" title="java web -18"                ></p><h5 id="十一、部署后项目发布地址已经自行匹配完成，返回修改tomcat信息剩余信息。"><a href="#十一、部署后项目发布地址已经自行匹配完成，返回修改tomcat信息剩余信息。" class="headerlink" title="十一、部署后项目发布地址已经自行匹配完成，返回修改tomcat信息剩余信息。"></a>十一、部署后项目发布地址已经自行匹配完成，返回修改tomcat信息剩余信息。</h5><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/java-web-creation/javaweb-19.2k93wt2g1j60.webp"                      alt="图片alt" title="java web -19"                ></p><h5 id="十二、最后点击OK就基本上完成创建了。"><a href="#十二、最后点击OK就基本上完成创建了。" class="headerlink" title="十二、最后点击OK就基本上完成创建了。"></a>十二、最后点击OK就基本上完成创建了。</h5>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;对于刚接触java web的时候，部署tomcat也是一个很常见的问题。&lt;/p&gt;
+&lt;h5 id=&quot;一、首先创建一个java项目，填好项目名称路径，其他什么都不用改直接下一步。&quot;&gt;&lt;a href=&quot;#一、首先创建一个java项目，填好项目名称路径，其他什么都不用改直接下一步。</summary>
+      
+    
+    
+    
+    
+  </entry>
+  
+  <entry>
+    <title>Windows下配置Git并连接上GitHub和设置代理</title>
+    <link href="https://thornboo.github.io/2022/04/18/Windows%E4%B8%8B%E9%85%8D%E7%BD%AEGit%E5%B9%B6%E8%BF%9E%E6%8E%A5%E4%B8%8AGitHub%E5%92%8C%E8%AE%BE%E7%BD%AE%E4%BB%A3%E7%90%86/"/>
+    <id>https://thornboo.github.io/2022/04/18/Windows%E4%B8%8B%E9%85%8D%E7%BD%AEGit%E5%B9%B6%E8%BF%9E%E6%8E%A5%E4%B8%8AGitHub%E5%92%8C%E8%AE%BE%E7%BD%AE%E4%BB%A3%E7%90%86/</id>
+    <published>2022-04-18T22:16:07.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>本文将详细介绍 Windows 下配置 Git 连接上 GitHub和设置代理。</p><h2 id="一、配置GitHub"><a href="#一、配置GitHub" class="headerlink" title="一、配置GitHub"></a>一、配置GitHub</h2><ol><li>首先进入 GitHub 的 <code>settings</code> 页面，<a class="link"   href="https://github.com/settings/keys" >https://github.com/settings/keys<i class="fas fa-external-link-alt"></i></a></li><li>如果之前设置过key，需要删除过期的key，如果没有就跳过。</li><li>点击 New SSH key，你需要输入 Title（选填） 和 Key，由于现在还没有 key，所以接下来去获取key。</li><li>打开 Git Bash并运行 <code>rm -rf ~/.ssh/*</code> （建议复制运行） 把本地现有的 ssh key 都删掉。</li><li>运行 <code>ssh-keygen -t rsa -C &quot;填写你的github邮箱&quot;</code>，注意填写的是你的github邮箱！</li><li>接着回车三次，什么都不要输入即可。</li><li>运行 <code>cat ~/.ssh/id_rsa.pub</code>，得到一串密钥，完整的复制这串密钥，回到上面第 3 步的页面，在 Key 里粘贴刚刚你你复制的那串密钥。</li><li>接着点击 Add SSH key， 回到 Git Bash 运行 <code>ssh -T git@github.com</code>，输入yes。</li><li>如果你看到 Permission denied (publickey). 就说明你失败了，请回到第 1 步重来；如果你看到 Hi FrankFang! You’ve successfully authenticated, but GitHub does not provide shell access. 就说明你成功了！</li></ol><h2 id="二、配置本地Git"><a href="#二、配置本地Git" class="headerlink" title="二、配置本地Git"></a>二、配置本地Git</h2><p>只有五局命令，依次在CLI中运行:</p><ol><li><strong><code>git config --global user.name 你的用户名</code></strong></li><li><strong><code>git config --global user.email 你的邮箱</code></strong></li><li><strong><code>git config --global push.default matching</code></strong>    其意是如果你执行 git push 但没有指定分支，它将 push 所有你本地的分支到远程仓库中对应匹配的分支。</li><li><strong><code>git config --global core.quotepath false</code></strong>     设为false的话，就不会对0×80以上的字符进行quote。中文显示正常。</li><li><strong><code>git config --global core.editor &quot;vim&quot;</code></strong>   设置编辑器为vim。</li></ol><h2 id="三、设置代理"><a href="#三、设置代理" class="headerlink" title="三、设置代理"></a>三、设置代理</h2><p>如果使用的是 <code>socks5</code>，本地 ip 和端口是 <code>127.0.0.1:1080</code>，则：</p><ol><li>只设置GitHub的代理，忽略Gitee：</li></ol><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">git config --global http.https://github.com.proxy socks5://127.0.0.1:1080</span><br><span class="line">git config --global https.https://github.com.proxy socks5://127.0.0.1:1080</span><br><span class="line"># 取消设置的代理</span><br><span class="line">git config --global --unset http.https://github.com.proxy</span><br><span class="line">git config --global --unset https.https://github.com.proxy</span><br></pre></td></tr></table></figure><ol start="2"><li>Git设置全面代理：</li></ol><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">git config --global http.proxy socks5://127.0.0.1:1080</span><br><span class="line">git config --global https.proxy socks5://127.0.0.1:1080</span><br><span class="line"># 取消设置的代理</span><br><span class="line">git config --global --unset http.proxy</span><br><span class="line">git config --global --unset https.proxy</span><br></pre></td></tr></table></figure><h2 id="四、Git其他操作"><a href="#四、Git其他操作" class="headerlink" title="四、Git其他操作"></a>四、Git其他操作</h2><ol><li>git 的配置文件在 <code>~/.gitconfig</code> ，仓库的配置文件是仓库内的 <code>.git/config</code>。</li><li>加上 <code>--global</code> 参数，则设置内容对当前用户生效，不加 <code>--global</code> 则对当前仓库生效。</li><li>检查配置情况：<code>git config --list</code> 。</li><li>显示历史记录时每个提交的信息显示一行： <code>git --global config format.pretty oneline</code>。</li></ol>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;本文将详细介绍 Windows 下配置 Git 连接上 GitHub和设置代理。&lt;/p&gt;
+&lt;h2 id=&quot;一、配置GitHub&quot;&gt;&lt;a href=&quot;#一、配置GitHub&quot; class=&quot;headerlink&quot; title=&quot;一、配置GitHub&quot;&gt;&lt;/a&gt;一、配置GitH</summary>
+      
+    
+    
+    
+    
+    <category term="git教程" scheme="https://thornboo.github.io/tags/git%E6%95%99%E7%A8%8B/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>Git Commit message 规范指南</title>
+    <link href="https://thornboo.github.io/2022/04/18/Git-Commit-message-%E8%A7%84%E8%8C%83%E6%8C%87%E5%8D%97/"/>
+    <id>https://thornboo.github.io/2022/04/18/Git-Commit-message-%E8%A7%84%E8%8C%83%E6%8C%87%E5%8D%97/</id>
+    <published>2022-04-18T21:57:47.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>前言：git 每次提交代码，都要写 Commit message（提交说明），否则就不允许提交。但是一般来说，commit message 应该清晰明了，说明本次提交的目的。</p><h2 id="一、git提交格式"><a href="#一、git提交格式" class="headerlink" title="一、git提交格式"></a>一、git提交格式</h2><p>代码格式为： <strong><code>git commit -m &quot;hello world&quot;</code></strong></p><p>上面代码的 -m 参数，就是用来指定 commit mesage 的。  如果一行不够，可以只执行 git commit ，就会跳出文本编辑器，让你写多行。</p><h2 id="二、commit-message格式"><a href="#二、commit-message格式" class="headerlink" title="二、commit message格式"></a>二、commit message格式</h2><p>代码格式： <strong><code>&lt;type&gt;(&lt;scope&gt;): &lt;subject&gt;</code></strong></p><ol><li><p><strong>type</strong>（必须）<br>用于说明 git commit 的类别，只允许使用下面的标识 。<br>如果 type 为 <code>feat</code> 和 <code>fix</code> ，则该commit将肯定出现在 Change log 之中。其他情况由你决定，要不要放入 Change log ，（建议不要放入）。</p><p><strong><code>feat</code></strong>:增加新功能。<br><strong><code>fix</code></strong>: 修复问题&#x2F;bug 。<br><strong><code>docs</code></strong>: 文档&#x2F;注释。<br><strong><code>style</code></strong>: 代码风格相关&#x2F;格式（不影响代码运行的变动）。<br><strong><code>pre</code></strong>: 优化&#x2F;性能提升。<br><strong><code>refactor</code></strong>: 代码重构。<br><strong><code>test</code></strong>: 测试相关 。<br><strong><code>chore</code></strong>: 依赖更新&#x2F;脚手架配置修改（构建过程或辅助工具的变动）。<br><strong><code>revert</code></strong>: 撤销修改（回滚到上一个版本） 。<br><strong><code>merge</code></strong>: 代码合并 。<br><strong><code>types</code></strong>: 类型定义文件更改。<br><strong><code>wip</code></strong>: 开发中。<br><strong><code>workflow</code></strong>: 工作流改进 。</p></li><li><p>scope（可选）<br>scope用于说明 <code>commit 影响的范围</code>，比如数据层、控制层、视图层等等，视项目不同而不同。如果你的修改影响了不止一个scope，你可以使用* 代替。</p></li><li><p>subject（必须）<br>subject是 <code>commit目的的简短描述</code>，不超过50个字符。建议使用中文（毕竟中国人用中文描述问题能更清楚一些），单词开头的第一个字母小写，且结尾不加句号或其他标点符号。</p></li></ol><h2 id="三、生成change-log"><a href="#三、生成change-log" class="headerlink" title="三、生成change log"></a>三、生成change log</h2><p>如果你的所有 Commit 都符合格式，那么发布新版本时， Change log 就可以用脚本自动生成。生成的文档应该包括以下三个部分：</p><ul><li>New features</li><li>Bug fixes</li><li>Breaking changes</li></ul><p>每个部分都会罗列相关的 commit ，并且有指向这些 commit 的链接。并且生成的文档允许手动修改，所以发布前，你还可以添加其他内容。</p><p>conventional-changelog就是生成 Change log 的工具，运行下面的命令即可。</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">npm install -g conventional-changelog</span><br><span class="line">cd my-project</span><br><span class="line">conventional-changelog -p angular -i CHANGELOG.md -w</span><br></pre></td></tr></table></figure>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;前言：git 每次提交代码，都要写 Commit message（提交说明），否则就不允许提交。但是一般来说，commit message 应该清晰明了，说明本次提交的目的。&lt;/p&gt;
+&lt;h2 id=&quot;一、git提交格式&quot;&gt;&lt;a href=&quot;#一、git提交格式&quot; class</summary>
+      
+    
+    
+    
+    
+    <category term="git教程" scheme="https://thornboo.github.io/tags/git%E6%95%99%E7%A8%8B/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>关于Webpack，npm、Node的简单介绍</title>
+    <link href="https://thornboo.github.io/2022/04/18/%E5%85%B3%E4%BA%8EWebpack%EF%BC%8Cnpm%E3%80%81Node%E7%9A%84%E7%AE%80%E5%8D%95%E4%BB%8B%E7%BB%8D/"/>
+    <id>https://thornboo.github.io/2022/04/18/%E5%85%B3%E4%BA%8EWebpack%EF%BC%8Cnpm%E3%80%81Node%E7%9A%84%E7%AE%80%E5%8D%95%E4%BB%8B%E7%BB%8D/</id>
+    <published>2022-04-18T21:38:39.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h3 id="一、npm相关"><a href="#一、npm相关" class="headerlink" title="一、npm相关"></a>一、npm相关</h3><h5 id="1、介绍"><a href="#1、介绍" class="headerlink" title="1、介绍"></a>1、介绍</h5><p><code>npm</code> 全称为 <code>Node Package Manager</code>，是一个基于 <code>Node.js</code> 的包管理器，是一个项目构建工具。它可以指定依赖库，设置项目属性等等，都在 <code>package.json</code> 配置文件里面。而 <code>package.json</code> 文件定义的是包，而 <code>node_modules</code> 文件夹则是存储模块的地方。便于js查找模块。<br><br><code>npm</code>主要是提供 <code>node_module</code> 的依赖支持, 而且是类似 <code>maven</code> 的 <code>dependency tree</code> 结构。</p><p><code>npm</code> 由三个独立的部分组成：</p><ul><li>网站：是开发者查找包（<code>package</code>）、设置参数以及管理 <code>npm</code> 使用体验的主要途径。</li><li>注册表（<code>registry</code>）：是一个巨大的数据库，保存了每个包（<code>package</code>）的信息。</li><li>命令行工具 (<code>CLI</code>)：通过命令行或终端运行。开发者通过 <code>CLI</code> 与 <code>npm</code> 打交道。</li></ul><h5 id="2、npm的全局安装和局部安装（-save-和-dev-区别）"><a href="#2、npm的全局安装和局部安装（-save-和-dev-区别）" class="headerlink" title="2、npm的全局安装和局部安装（ --save 和 --dev 区别）"></a>2、npm的全局安装和局部安装（ <code>--save</code> 和 <code>--dev</code> 区别）</h5><h5 id="3、npm更换镜像源"><a href="#3、npm更换镜像源" class="headerlink" title="3、npm更换镜像源"></a>3、npm更换镜像源</h5><ul><li>临时切换，通过 <code>npm</code> 命令指定下载源： <strong><code>npm --registry https://registry.npm.taobao.org install express</code></strong></li><li>永久修改，使用命令： <strong><code>npm config set registry https://registry.npm.taobao.org</code></strong></li></ul><h5 id="4、如何查看全局和局部的包"><a href="#4、如何查看全局和局部的包" class="headerlink" title="4、如何查看全局和局部的包"></a>4、如何查看全局和局部的包</h5><h5 id="5、npm-和-cnpm-的区别，会不会产生冲突"><a href="#5、npm-和-cnpm-的区别，会不会产生冲突" class="headerlink" title="5、npm 和 cnpm 的区别，会不会产生冲突"></a>5、<code>npm</code> 和 <code>cnpm</code> 的区别，会不会产生冲突</h5><h5 id="6、npm如何更换包的版本"><a href="#6、npm如何更换包的版本" class="headerlink" title="6、npm如何更换包的版本"></a>6、npm如何更换包的版本</h5><h3 id="二、webpack相关"><a href="#二、webpack相关" class="headerlink" title="二、webpack相关"></a>二、webpack相关</h3><p><code>Webpack</code> 是一个前端资源加载&#x2F;打包工具。它将根据模块的依赖关系进行静态分析，然后将这些模块按照指定的规则生成对应的静态资源。除此之外，<code>webpack</code> 因为可以提高兼容性，可以将一些浏览器尚不支持的新特性转换为可以支持格式，进而减少由新特性带来的浏览器的兼容性问题。</p><p><img                       lazyload                     src="/images/loading.svg"                     data-src="https://cdn.staticaly.com/gh/thornboo/blog-image-bed@master/webpack%E6%B5%81%E7%A8%8B%E5%9B%BE.518ty7jhnvw0.webp"                      alt="webpack流程图" title="webpack流程图"                ></p><h3 id="三、node相关"><a href="#三、node相关" class="headerlink" title="三、node相关"></a>三、node相关</h3><p>简单的说， <code>Node.js</code> 就是一个服务器端的、 非阻断式I&#x2F;O 的、事件驱动 的JavaScript运行环境。<br><br>基于Google的V8引擎，V8引擎执行Javascript的速度非常快，性能非常好，提供了一种可以让JS代码跑在后端的能力，这就是<code>node</code>。</p><h3 id="四、npm、webpack和node之间的联系"><a href="#四、npm、webpack和node之间的联系" class="headerlink" title="四、npm、webpack和node之间的联系"></a>四、npm、webpack和node之间的联系</h3><p><code>webpack</code> 是 <code>npm</code> 生态中的一个模块，<code>webpack</code> 的运行依赖于 <code>node</code> 的环境，没有 <code>node</code> 是不能打包的。<br><br>但是 <code>webpack</code> 打包后的项目本身只是前端静态资源，和后台没有关系，也就是说不依赖于 <code>node</code>，只要有后台能力的都可以部署项目。</p>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h3 id=&quot;一、npm相关&quot;&gt;&lt;a href=&quot;#一、npm相关&quot; class=&quot;headerlink&quot; title=&quot;一、npm相关&quot;&gt;&lt;/a&gt;一、npm相关&lt;/h3&gt;&lt;h5 id=&quot;1、介绍&quot;&gt;&lt;a href=&quot;#1、介绍&quot; class=&quot;headerlink&quot; titl</summary>
+      
+    
+    
+    
+    
+    <category term="总结" scheme="https://thornboo.github.io/tags/%E6%80%BB%E7%BB%93/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>python之pip的常见操作</title>
+    <link href="https://thornboo.github.io/2022/04/18/python%E4%B9%8Bpip%E7%9A%84%E5%B8%B8%E8%A7%81%E6%93%8D%E4%BD%9C/"/>
+    <id>https://thornboo.github.io/2022/04/18/python%E4%B9%8Bpip%E7%9A%84%E5%B8%B8%E8%A7%81%E6%93%8D%E4%BD%9C/</id>
+    <published>2022-04-18T21:20:26.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h3 id="一、pip切换镜像源"><a href="#一、pip切换镜像源" class="headerlink" title="一、pip切换镜像源"></a>一、pip切换镜像源</h3><ol><li><p>临时切换（加上 -i 即可）： <strong><code>pip install 包名 -i</code></strong> <a class="link"   href="https://pypi.tuna.tsinghua.edu.cn/simple" >https://pypi.tuna.tsinghua.edu.cn/simple<i class="fas fa-external-link-alt"></i></a></p></li><li><p>永久切换（全局修改）：找到 <code>pip.exe</code> 程序所在的文件夹目录并进入，创建 <code>pip.ini</code> 文件并在 <code>pip.ini</code> 文件中输入以下内容：</p></li></ol><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">[global]</span><br><span class="line"></span><br><span class="line">index-url = https://pypi.tuna.tsinghua.edu.cn/simple</span><br><span class="line"></span><br><span class="line">[install]</span><br><span class="line"></span><br><span class="line">trusted-host = pypi.tuna.tsinghua.edu.cn</span><br></pre></td></tr></table></figure><h3 id="二、pip常用命令"><a href="#二、pip常用命令" class="headerlink" title="二、pip常用命令"></a>二、pip常用命令</h3><ol><li>查看配置信息： <strong><code>pip config list</code></strong></li><li>查看已安装的包： <strong><code>pip list</code></strong></li><li>拉取指定版本： <strong><code>pip install 包名 = 版本号</code></strong></li><li>pip更新升级： <strong><code>python -m pip install --upgrade pip</code></strong></li><li>显示包所在的目录： <strong><code>pip show -f &lt;包名&gt;</code></strong></li><li>查询可升级的包： <strong><code>pip list -o</code></strong></li></ol>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h3 id=&quot;一、pip切换镜像源&quot;&gt;&lt;a href=&quot;#一、pip切换镜像源&quot; class=&quot;headerlink&quot; title=&quot;一、pip切换镜像源&quot;&gt;&lt;/a&gt;一、pip切换镜像源&lt;/h3&gt;&lt;ol&gt;
+&lt;li&gt;&lt;p&gt;临时切换（加上 -i 即可）： &lt;strong&gt;&lt;code</summary>
+      
+    
+    
+    
+    
+    <category term="python" scheme="https://thornboo.github.io/tags/python/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>各种命名规范指南</title>
+    <link href="https://thornboo.github.io/2022/04/18/%E5%90%84%E7%A7%8D%E5%91%BD%E5%90%8D%E8%A7%84%E8%8C%83%E6%8C%87%E5%8D%97/"/>
+    <id>https://thornboo.github.io/2022/04/18/%E5%90%84%E7%A7%8D%E5%91%BD%E5%90%8D%E8%A7%84%E8%8C%83%E6%8C%87%E5%8D%97/</id>
+    <published>2022-04-18T14:31:05.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>前言：为什么需要重视命名？</p><p>这是因为好的命名即是注释，别人一看到你的命名就知道你的变量、方法或者类是做什么的！</p><h2 id="一、命名方法"><a href="#一、命名方法" class="headerlink" title="一、命名方法"></a>一、命名方法</h2><h4 id="1、驼峰命名法"><a href="#1、驼峰命名法" class="headerlink" title="1、驼峰命名法"></a>1、驼峰命名法</h4><ul><li><p>小驼峰命名法<br> 特点：除第一个单词之外，其他单词首字母大写。<br> 应用：参数名、成员变量、局部变量、方法名。</p></li><li><p>大驼峰命名法<br> 特点：第一个单词的首字母大写，后边单词首字母也大写。<br> 应用：类名、函数名、属性名、命名空间。</p></li></ul><h4 id="2、蛇形命名法"><a href="#2、蛇形命名法" class="headerlink" title="2、蛇形命名法"></a>2、蛇形命名法</h4><ul><li>特点：个单词均小写，并且各个单词之间通过下划线“_”连接。</li><li>应用：测试方法名、常量、枚举名。</li></ul><h4 id="3、串式命名法"><a href="#3、串式命名法" class="headerlink" title="3、串式命名法"></a>3、串式命名法</h4><ul><li>特点：各个单词均小写并且单词之间通过连接符“-”连接。</li><li>应用：项目名。</li></ul><h2 id="二、常见命名规范"><a href="#二、常见命名规范" class="headerlink" title="二、常见命名规范"></a>二、常见命名规范</h2><h4 id="1、Java-语言基本命名规范"><a href="#1、Java-语言基本命名规范" class="headerlink" title="1、Java 语言基本命名规范"></a>1、Java 语言基本命名规范</h4><ol><li>类名需要使用大驼峰命名法（UpperCamelCase）风格。方法名、参数名、成员变量、局部变量需要使用小驼峰命名法（lowerCamelCase）。</li><li>测试方法名、常量、枚举名称需要使用蛇形命名法（snake_case），并且，测试方法名称要求全部小写，常量以及枚举名称需要全部大写。</li><li>项目文件夹名称使用串式命名法（kebab-case）。</li><li>包名统一使用小写，尽量使用单个名词作为包名，各个单词通过 “.” 分隔符连接，并且各个单词必须为单数。</li><li>抽象类命名使用 Abstract 开头。</li><li>异常类命名使用 Exception 结尾。</li><li>测试类命名以它要测试的类的名称开始，以 Test 结尾。</li><li>POJO 类中布尔类型的变量，都不要加 is 前缀，否则部分框架解析会引起序列化错误。</li><li>如果模块、接口、类、方法使用了设计模式，在命名时需体现出具体模式。</li></ol><h4 id="2、命名易读性规范"><a href="#2、命名易读性规范" class="headerlink" title="2、命名易读性规范"></a>2、命名易读性规范</h4><ol><li>为了能让命名更加易懂和易读，尽量不要缩写&#x2F;简写单词，除非这些单词已经被公认可以被这样缩写&#x2F;简写。</li><li>命名不像函数一样要尽量追求短，可读性强的名字优先于简短的名字，虽然可读性强的名字会比较长一点。 这个对应我们上面说的第 1 点。</li><li>避免无意义的命名，你起的每一个名字都要能表明意思。</li><li>避免命名过长（50 个字符以内最好），过长的命名难以阅读并且丑陋。</li><li>不要使用拼音，更不要使用中文。不过像 alibaba 、wuhan、taobao 这种国际通用名词可以当做英文来看待。</li></ol><h4 id="3、Vue命名规范"><a href="#3、Vue命名规范" class="headerlink" title="3、Vue命名规范"></a>3、Vue命名规范</h4><h2 id="三、相关工具"><a href="#三、相关工具" class="headerlink" title="三、相关工具"></a>三、相关工具</h2><ol><li>变量命名神器（Codelf）:<br>一个由国人开发的网站，网上有很多人称其为变量命名神器，Codelf 提供了在线网站版本，网址：<a class="link"   href="https://unbug.github.io/codelf/%E3%80%82" >https://unbug.github.io/codelf/。<i class="fas fa-external-link-alt"></i></a></li></ol>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;前言：为什么需要重视命名？&lt;/p&gt;
+&lt;p&gt;这是因为好的命名即是注释，别人一看到你的命名就知道你的变量、方法或者类是做什么的！&lt;/p&gt;
+&lt;h2 id=&quot;一、命名方法&quot;&gt;&lt;a href=&quot;#一、命名方法&quot; class=&quot;headerlink&quot; title=&quot;一、命名方法&quot;&gt;&lt;/</summary>
+      
+    
+    
+    
+    <category term="编码规范" scheme="https://thornboo.github.io/categories/%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/"/>
+    
+    
+    <category term="编码规范" scheme="https://thornboo.github.io/tags/%E7%BC%96%E7%A0%81%E8%A7%84%E8%8C%83/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>静态HTML页面传值的方法</title>
+    <link href="https://thornboo.github.io/2022/04/17/%E9%9D%99%E6%80%81HTML%E9%A1%B5%E9%9D%A2%E4%BC%A0%E5%80%BC%E7%9A%84%E6%96%B9%E6%B3%95/"/>
+    <id>https://thornboo.github.io/2022/04/17/%E9%9D%99%E6%80%81HTML%E9%A1%B5%E9%9D%A2%E4%BC%A0%E5%80%BC%E7%9A%84%E6%96%B9%E6%B3%95/</id>
+    <published>2022-04-17T11:47:47.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h4 id="1、通过url传值"><a href="#1、通过url传值" class="headerlink" title="1、通过url传值"></a>1、通过url传值</h4><p>示例如下：</p><p>这是A页面：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">&lt;head&gt;</span><br><span class="line">    &lt;meta charset=&quot;UTF-8&quot;&gt;</span><br><span class="line">    &lt;title&gt;A page&lt;/title&gt;</span><br><span class="line">    &lt;script src=&quot;https://cdn.bootcss.com/jquery/3.2.1/jquery.js&quot;&gt;&lt;/script&gt;</span><br><span class="line">    &lt;script&gt;</span><br><span class="line">        $(document).ready(function () &#123;</span><br><span class="line">            // 拼接跳转url中要传输的数据</span><br><span class="line">            var dataList = [];</span><br><span class="line">            var dataStr;</span><br><span class="line">            dataList.push(&#x27;name&#x27;);//name、password为要传递的参数</span><br><span class="line">            dataList.push(&#x27;password&#x27;);</span><br><span class="line">            dataStr = window.JSON.stringify(dataList);</span><br><span class="line"></span><br><span class="line">            $(&#x27;#aPage&#x27;).on(&#x27;click&#x27;, function () &#123;</span><br><span class="line">                console.log(dataStr)</span><br><span class="line">                $(&#x27;#aPage&#x27;).attr(&quot;href&quot;, &quot;b.html?data=&quot; + dataStr);</span><br><span class="line">            &#125;)</span><br><span class="line">        &#125;);</span><br><span class="line">    &lt;/script&gt;</span><br><span class="line">&lt;/head&gt;</span><br><span class="line">&lt;body&gt;</span><br><span class="line">&lt;a href=&quot;b.html&quot; id=&quot;aPage&quot;&gt;在url里带数据跳转到b页面&lt;/a&gt;</span><br><span class="line">&lt;/body&gt;</span><br></pre></td></tr></table></figure><p>注意：JSON.stringify() 方法用于将 JavaScript 值转换为 JSON 字符串。</p><p>这是B页面：</p><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">&lt;head&gt;</span><br><span class="line">    &lt;meta charset=&quot;UTF-8&quot;&gt;</span><br><span class="line">    &lt;title&gt;B page&lt;/title&gt;</span><br><span class="line">    &lt;script src=&quot;https://cdn.bootcss.com/jquery/3.2.1/jquery.js&quot;&gt;&lt;/script&gt;</span><br><span class="line">    &lt;script&gt;</span><br><span class="line">        $(document).ready(function () &#123;</span><br><span class="line">            //使用正则表达式获取url中的参数</span><br><span class="line">            function getUrlParam(name) &#123;</span><br><span class="line">                //构造一个含有目标参数的正则表达式对象</span><br><span class="line">                var reg = new RegExp(&quot;(^|&amp;)&quot; + name + &quot;=([^&amp;]*)(&amp;|$)&quot;);</span><br><span class="line">                //匹配目标参数，window.location.search获取页面url</span><br><span class="line">                var r = window.location.search.substr(1).match(reg);</span><br><span class="line">                //返回参数值</span><br><span class="line">                if (r != null) &#123;</span><br><span class="line">                    return unescape(r[2]);</span><br><span class="line">                &#125;</span><br><span class="line">                alert(&quot;出错了！&quot;);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            var urlData = getUrlParam(&#x27;data&#x27;);</span><br><span class="line">            // 将数据填充到input框里面</span><br><span class="line">            $(&#x27;#getUrlData&#x27;).val(urlData);</span><br><span class="line">        &#125;);</span><br><span class="line">    &lt;/script&gt;</span><br><span class="line">&lt;/head&gt;</span><br><span class="line">&lt;body&gt;</span><br><span class="line">&lt;input type=&quot;text&quot; id=&quot;getUrlData&quot;&gt;</span><br><span class="line">&lt;/body&gt;</span><br></pre></td></tr></table></figure><p><em>注意：</em></p><ol><li>window.location.search.substr(1).match(reg);  </li><li>location是包含了相关的url的信息，它是windown的一部分。  </li><li>search是一个可以查询的属性，可以查询？之后的部分。</li><li>substr(1)是为了去掉第一个？</li><li>match()是你要匹配的部分 后面可以是正则表达式。</li><li>return unescpe（r[2]） 返回的值 一个数组。  </li><li>这里是开始匹配，找到了返回对应url值，没找到返回null。</li></ol><p>此方法不足之处： </p><ul><li>URL传递参数长度受限，最大为2K。 </li><li>URL只能传递字符型参数，不能传递中文。 </li><li>容易导致信息泄露，重要信息需要加密后才能传递。</li></ul><h4 id="2、通过浏览器cookie传值"><a href="#2、通过浏览器cookie传值" class="headerlink" title="2、通过浏览器cookie传值"></a>2、通过浏览器cookie传值</h4><h4 id="3、通过form表单传值"><a href="#3、通过form表单传值" class="headerlink" title="3、通过form表单传值"></a>3、通过form表单传值</h4>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h4 id=&quot;1、通过url传值&quot;&gt;&lt;a href=&quot;#1、通过url传值&quot; class=&quot;headerlink&quot; title=&quot;1、通过url传值&quot;&gt;&lt;/a&gt;1、通过url传值&lt;/h4&gt;&lt;p&gt;示例如下：&lt;/p&gt;
+&lt;p&gt;这是A页面：&lt;/p&gt;
+&lt;figure class=&quot;hig</summary>
+      
+    
+    
+    
+    
+    <category term="web前端" scheme="https://thornboo.github.io/tags/web%E5%89%8D%E7%AB%AF/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>vue全家桶以及各部分功能</title>
+    <link href="https://thornboo.github.io/2022/04/17/vue%E5%85%A8%E5%AE%B6%E6%A1%B6%E4%BB%A5%E5%8F%8A%E5%90%84%E9%83%A8%E5%88%86%E5%8A%9F%E8%83%BD/"/>
+    <id>https://thornboo.github.io/2022/04/17/vue%E5%85%A8%E5%AE%B6%E6%A1%B6%E4%BB%A5%E5%8F%8A%E5%90%84%E9%83%A8%E5%88%86%E5%8A%9F%E8%83%BD/</id>
+    <published>2022-04-17T01:47:27.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h4 id="1、vue全家桶"><a href="#1、vue全家桶" class="headerlink" title="1、vue全家桶"></a>1、vue全家桶</h4><p>vue全家桶包括：vue-cli（脚手架），vuex（状态管理），vueRouter（路由），Axios（网络请求）。</p><h4 id="2、各部分功能"><a href="#2、各部分功能" class="headerlink" title="2、各部分功能"></a>2、各部分功能</h4><ol><li><p><strong>vue-cli</strong> ：</p><p> 可以通过 vue create 快速搭建一个新项目，或者直接通过 vue serve 构建新想法的原型。</p></li><li><p><strong>vuex</strong> ：</p><p> 是一个专为Vue.js 应用程序开发的状态管理模式+ 库。 它采用集中式存储管理应用的所有组件的状态，并以相应的规则保证状态以一种可预测的方式发生变化。</p></li><li><p><strong>vueRouter</strong> ：</p><p> 是Vue.js官方的路由插件，它和vue.js是深度集成的，适合用于构建单页面应用。vue的单页面应用是基于路由和组件的，路由用于设定访问路径，并将路径和组件映射起来。传统的页面应用，是用一些超链接来实现页面切换和跳转的。在vue-router单页面应用中，则是路径之间的切换，也就是组件的切换。</p></li><li><p><strong>Axios</strong> ：</p><p> 一个基于promise 的HTTP 库，可以用在浏览器和node.js 中。 axios：前端通信框架，因为vue的边界很明确，就是为了处理DOM，所以并不具备通信功能，此时就需要额外使用一个通信框架与服务器交互；当然也可以使用jQuery提供的AJAX通信功能。</p></li></ol>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h4 id=&quot;1、vue全家桶&quot;&gt;&lt;a href=&quot;#1、vue全家桶&quot; class=&quot;headerlink&quot; title=&quot;1、vue全家桶&quot;&gt;&lt;/a&gt;1、vue全家桶&lt;/h4&gt;&lt;p&gt;vue全家桶包括：vue-cli（脚手架），vuex（状态管理），vueRouter（路由）</summary>
+      
+    
+    
+    
+    
+    <category term="Vue" scheme="https://thornboo.github.io/tags/Vue/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>关于npm的一些基础设置和常用命令</title>
+    <link href="https://thornboo.github.io/2022/04/17/%E5%85%B3%E4%BA%8Enpm%E7%9A%84%E4%B8%80%E4%BA%9B%E5%9F%BA%E7%A1%80%E8%AE%BE%E7%BD%AE%E5%92%8C%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/"/>
+    <id>https://thornboo.github.io/2022/04/17/%E5%85%B3%E4%BA%8Enpm%E7%9A%84%E4%B8%80%E4%BA%9B%E5%9F%BA%E7%A1%80%E8%AE%BE%E7%BD%AE%E5%92%8C%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4/</id>
+    <published>2022-04-17T01:25:46.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<h4 id="1、换镜像源"><a href="#1、换镜像源" class="headerlink" title="1、换镜像源"></a>1、换镜像源</h4><p>目前国内一般都使用淘宝镜像源，访问速度非常快。</p><ol><li>npm查看当前使用源： <strong><code>npm config get registry</code></strong></li><li>临时切换，通过 npm 命令指定下载源： <strong><code>npm --registry https://registry.npm.taobao.org install express</code></strong></li><li>永久修改，使用命令： <strong><code>npm config set registry https://registry.npm.taobao.org</code></strong></li><li>切换官方源： <strong><code>npm config set registry https://registry.npmjs.org</code></strong></li></ol><h4 id="2、常用命令"><a href="#2、常用命令" class="headerlink" title="2、常用命令"></a>2、常用命令</h4><ol><li>安装： <strong><code>npm install 模块名</code></strong> （加-g全局安装；加–save安装运行时依赖）</li><li>卸载： <strong><code>npm uninstall 模块名</code></strong></li><li>查找：<ol><li>查看模块安装目录： <strong><code>npm root</code></strong> （加 -g 为全局）</li><li>查看全局安装的包： <strong><code>npm list -g --dept 0</code></strong> （深度为0）</li><li>查看配置信息： <strong><code>npm config list</code></strong> （查看详细配置： <strong><code>npm config list -l</code></strong> ）</li></ol></li><li>更新：<ol><li>包更新： <strong><code>npm undate</code></strong> 模块名</li><li>npm版本更新： <strong><code>npm update</code></strong> （更新的是当前目录下的 <strong>node_modules</strong> ）</li><li>npm更新升级： <strong><code>npm install n -g</code></strong></li></ol></li></ol><h4 id="3、package-json文件的配置说明"><a href="#3、package-json文件的配置说明" class="headerlink" title="3、package.json文件的配置说明"></a>3、package.json文件的配置说明</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  &quot;name&quot;: &quot;blog&quot;,  //项目名称</span><br><span class="line">  &quot;version&quot;: &quot;0.0.0&quot;,   //版本</span><br><span class="line">  &quot;description&quot;: &quot;&quot;,   //项目描述</span><br><span class="line">  &quot;private&quot;: true,</span><br><span class="line">  &quot;main&quot;: &quot;index.js&quot;,  //入口文件</span><br><span class="line">  &quot;scripts&quot;: &#123;   //配置一些通用的命令脚本</span><br><span class="line">&quot;start&quot;: &quot;node ./bin/www&quot;</span><br><span class="line">  &#125;,</span><br><span class="line">  &quot;keywords&quot;: [],  //项目的关键字</span><br><span class="line">  &quot;author&quot;: &quot;&quot;,  //作者</span><br><span class="line">  &quot;dependencies&quot;: &#123;   //开发时的依赖</span><br><span class="line">&quot;body-parser&quot;: &quot;~1.16.0&quot;,</span><br><span class="line">&quot;cookie-parser&quot;: &quot;~1.4.3&quot;,</span><br><span class="line">&quot;debug&quot;: &quot;~2.6.0&quot;,</span><br><span class="line">&quot;ejs&quot;: &quot;~2.5.5&quot;,</span><br><span class="line">&quot;express&quot;: &quot;~4.14.1&quot;,</span><br><span class="line">&quot;morgan&quot;: &quot;~1.7.0&quot;,</span><br><span class="line">&quot;serve-favicon&quot;: &quot;~2.3.2&quot;</span><br><span class="line">  &#125;,</span><br><span class="line">  &quot;devDependencies&quot;: &#123;   //运行时的依赖</span><br><span class="line">&quot;express-session&quot;: &quot;^1.15.1&quot;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;h4 id=&quot;1、换镜像源&quot;&gt;&lt;a href=&quot;#1、换镜像源&quot; class=&quot;headerlink&quot; title=&quot;1、换镜像源&quot;&gt;&lt;/a&gt;1、换镜像源&lt;/h4&gt;&lt;p&gt;目前国内一般都使用淘宝镜像源，访问速度非常快。&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;npm查看当前使用源： &lt;stro</summary>
+      
+    
+    
+    
+    
+    <category term="node" scheme="https://thornboo.github.io/tags/node/"/>
+    
+  </entry>
+  
+  <entry>
+    <title>github重新修改历史commit的name和email信息</title>
+    <link href="https://thornboo.github.io/2022/04/17/github%E9%87%8D%E6%96%B0%E4%BF%AE%E6%94%B9%E5%8E%86%E5%8F%B2commit%E7%9A%84name%E5%92%8Cemail%E4%BF%A1%E6%81%AF/"/>
+    <id>https://thornboo.github.io/2022/04/17/github%E9%87%8D%E6%96%B0%E4%BF%AE%E6%94%B9%E5%8E%86%E5%8F%B2commit%E7%9A%84name%E5%92%8Cemail%E4%BF%A1%E6%81%AF/</id>
+    <published>2022-04-17T01:04:23.000Z</published>
+    <updated>2023-10-10T01:58:13.000Z</updated>
+    
+    <content type="html"><![CDATA[<p>前言：本文将介绍如何批量修改 git 历史提交记录中的 username 和 email。</p><h5 id="1、给你的repo创建一个全新的clone，并复制粘贴脚本。"><a href="#1、给你的repo创建一个全新的clone，并复制粘贴脚本。" class="headerlink" title="1、给你的repo创建一个全新的clone，并复制粘贴脚本。"></a>1、给你的repo创建一个全新的clone，并复制粘贴脚本。</h5><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git clone --bare https://github.com/user/repo.git</span><br><span class="line">cd repo.git</span><br></pre></td></tr></table></figure><h5 id="2、根据你的信息修改以下变量：旧的Email地址，正确的用户名，正确的邮件地址；然后按Enter键执行脚本。"><a href="#2、根据你的信息修改以下变量：旧的Email地址，正确的用户名，正确的邮件地址；然后按Enter键执行脚本。" class="headerlink" title="2、根据你的信息修改以下变量：旧的Email地址，正确的用户名，正确的邮件地址；然后按Enter键执行脚本。"></a>2、根据你的信息修改以下变量：旧的Email地址，正确的用户名，正确的邮件地址；然后按Enter键执行脚本。</h5><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">#!/bin/sh</span><br><span class="line">git filter-branch --env-filter &#x27;</span><br><span class="line">OLD_EMAIL=&quot;旧的Email地址&quot;</span><br><span class="line">CORRECT_NAME=&quot;正确的用户名&quot;</span><br><span class="line">CORRECT_EMAIL=&quot;正确的邮件地址&quot;</span><br><span class="line">if [ &quot;$GIT_COMMITTER_EMAIL&quot; = &quot;$OLD_EMAIL&quot; ]</span><br><span class="line">then</span><br><span class="line">    export GIT_COMMITTER_NAME=&quot;$CORRECT_NAME&quot;</span><br><span class="line">    export GIT_COMMITTER_EMAIL=&quot;$CORRECT_EMAIL&quot;</span><br><span class="line">fi</span><br><span class="line">if [ &quot;$GIT_AUTHOR_EMAIL&quot; = &quot;$OLD_EMAIL&quot; ]</span><br><span class="line">then</span><br><span class="line">    export GIT_AUTHOR_NAME=&quot;$CORRECT_NAME&quot;</span><br><span class="line">    export GIT_AUTHOR_EMAIL=&quot;$CORRECT_EMAIL&quot;</span><br><span class="line">fi</span><br><span class="line">&#x27; --tag-name-filter cat -- --branches --tags</span><br></pre></td></tr></table></figure><h5 id="3、用git-log命令看看新-Git-历史有没有错误，如果没有错误就把把正确历史-push-到-Github。"><a href="#3、用git-log命令看看新-Git-历史有没有错误，如果没有错误就把把正确历史-push-到-Github。" class="headerlink" title="3、用git log命令看看新 Git 历史有没有错误，如果没有错误就把把正确历史 push 到 Github。"></a>3、用git log命令看看新 Git 历史有没有错误，如果没有错误就把把正确历史 push 到 Github。</h5><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">git push --force --tags origin &#x27;refs/heads/*&#x27;</span><br></pre></td></tr></table></figure><h5 id="4、接着删掉刚刚临时创建的-clone。"><a href="#4、接着删掉刚刚临时创建的-clone。" class="headerlink" title="4、接着删掉刚刚临时创建的 clone。"></a>4、接着删掉刚刚临时创建的 clone。</h5><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cd ..</span><br><span class="line">rm -rf repo.git</span><br></pre></td></tr></table></figure><h5 id="备注：如何正确设置你的-git-个人信息（全局设置）"><a href="#备注：如何正确设置你的-git-个人信息（全局设置）" class="headerlink" title="备注：如何正确设置你的 git 个人信息（全局设置）"></a><em>备注：如何正确设置你的 git 个人信息（全局设置）</em></h5><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git config --global user.email &quot;你的邮件地址&quot;</span><br><span class="line">git config --global user.name &quot;你的Github用户名&quot;</span><br></pre></td></tr></table></figure>]]></content>
+    
+    
+      
+      
+    <summary type="html">&lt;p&gt;前言：本文将介绍如何批量修改 git 历史提交记录中的 username 和 email。&lt;/p&gt;
+&lt;h5 id=&quot;1、给你的repo创建一个全新的clone，并复制粘贴脚本。&quot;&gt;&lt;a href=&quot;#1、给你的repo创建一个全新的clone，并复制粘贴脚本。&quot; class</summary>
+      
+    
+    
+    
+    
+    <category term="git教程" scheme="https://thornboo.github.io/tags/git%E6%95%99%E7%A8%8B/"/>
+    
+  </entry>
+  
+</feed>
